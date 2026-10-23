@@ -1,0 +1,64 @@
+{
+  "name": "bedrock-creator-kit",
+  "version": "0.9.0",
+  "description": "Minecraft 統合版（Bedrock Edition）・教育版のアドオン開発ツール bkit。雛形、ゲームへの転送、型・版のチェック、公式の検証、.mcaddon の作成までを 1 つのコマンドで。NOT AN OFFICIAL MINECRAFT PRODUCT.",
+  "keywords": [
+    "minecraft",
+    "bedrock",
+    "bedrock-edition",
+    "education-edition",
+    "addon",
+    "behavior-pack",
+    "resource-pack",
+    "script-api",
+    "cli"
+  ],
+  "homepage": "https://github.com/pon0807/bedrock-creator-kit#readme",
+  "bugs": {
+    "url": "https://github.com/pon0807/bedrock-creator-kit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pon0807/bedrock-creator-kit.git"
+  },
+  "license": "MIT",
+  "author": "ぽん (pon0807)",
+  "type": "module",
+  "bin": {
+    "bkit": "bin/bkit.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "types",
+    "tsconfig.base.json",
+    "eslint.base.mjs",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "セットアップ.cmd"
+  ],
+  "scripts": {
+    "test": "node --test --test-reporter=spec"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@minecraft/creator-tools": "^0.20.0",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "eslint-plugin-minecraft-linting": "^2.0.13",
+    "fflate": "^0.8.3",
+    "gulp": "^5.0.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0"
+  }
+}

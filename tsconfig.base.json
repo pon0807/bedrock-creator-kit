@@ -1,0 +1,19 @@
+{
+  // 各プロジェクトの tsconfig.json がこれを extends する
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["bedrock-creator-kit/types"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": false,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
