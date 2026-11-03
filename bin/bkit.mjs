@@ -43,6 +43,7 @@ ${color.bold("アドオンのフォルダの中で")}（npm run 〇〇 でも同
   lint [--fix]  types  compat        チェックを 1 つずつ
   validate [main|addon|all]          公式の Creator Tools で検証
   release [patch|minor|major|none]   版を上げて dist/ に .mcaddon を作る（アドオンごと。--addon で絞る）
+      --brarchive                    パックの中身を .brarchive にまとめる（公式のパックと同じ形。--no-brarchive でやめる）
   add [名前] [--requires main]       このプロジェクトにアドオンを足す（名前を省くと質問形式）
   uuid [--fix] [--new N]             UUID の重複を探す / 振り直す / 新しく出す
   vscode                             .vscode（デバッガなど）を作り直す
@@ -115,8 +116,16 @@ async function main() {
       return compat(proj(), { only: args.only }).errors ? 1 : 0;
     case "validate":
       return (await validate(proj(), { suite: args._[0] ?? "main" })).errors ? 1 : 0;
-    case "release":
-      return release(proj(), { kind: args._[0] ?? "patch", force: !!args.force, skipValidate: args.validate === false, addons: args.addon });
+    case "release": {
+      // 「--brarchive minor」と書いても minor を版の上げ方として読む
+      let kind = args._[0];
+      let brarchive = args.brarchive;
+      if (typeof brarchive === "string") {
+        kind ??= brarchive;
+        brarchive = true;
+      }
+      return release(proj(), { kind: kind ?? "patch", force: !!args.force, skipValidate: args.validate === false, addons: args.addon, brarchive });
+    }
     case "add":
       if (!args._[0] && isInteractive()) return addWizard(proj());
       return addAddon(proj(), args);

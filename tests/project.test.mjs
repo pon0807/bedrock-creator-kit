@@ -139,6 +139,20 @@ test("配布: アドオンごとに版を上げ、拡張の依存の版も合わ
   assert.match(path.basename(addon), /^Sword_extra_v1\.0\.0\.mcaddon$/);
   const tops = new Set(Object.keys(unzipSync(fs.readFileSync(addon))).map((k) => k.split("/")[0]));
   assert.deepEqual([...tops].sort(), ["Sword_extraBP", "Sword_extraRP"]);
+
+  // brarchive の形: BP・RP は __brarchive にまとめ、スキンパックはそのまま。ソースマップは入れない
+  const done3 = quiet();
+  const br = packageAddon(fresh, addonsOf(fresh).find((a) => a.id === "main"), "1.1.0", { multi: true, brarchive: true });
+  done3();
+  const names = Object.keys(unzipSync(fs.readFileSync(br.addon)));
+  assert.ok(names.includes("Sword_mainBP/__brarchive/scripts.brarchive"), names.join("\n"));
+  assert.ok(!names.some((n) => n.startsWith("Sword_mainBP/scripts/")), "スクリプトは archive の中だけ");
+  assert.ok(!names.some((n) => n.endsWith(".map")));
+  assert.ok(names.includes("Sword_mainRP/__brarchive/texts.brarchive"));
+  assert.ok(!names.some((n) => n.startsWith("Sword_skins/__brarchive")), "スキンパックはまとめない");
+  const files = unzipSync(fs.readFileSync(br.addon));
+  assert.equal(JSON.parse(Buffer.from(files["Sword_mainBP/manifest.json"]).toString()).header.pack_optimization_version, "0.1.0");
+  assert.deepEqual(br.baked.map((b) => b.pack).sort(), ["Sword_mainBP", "Sword_mainRP"]);
 });
 
 test("UUID の重複を見つける（同じ名前のフォルダ＝写しは数えない、BDS 一式は見ない）", () => {
