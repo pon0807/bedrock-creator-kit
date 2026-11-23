@@ -7,7 +7,7 @@
 > **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
 > Minecraft の公式の製品ではありません。Mojang・Microsoft の承認を受けたものでも、関係するものでもありません。
 
-> **ベータ版（0.11）です。** 作者の環境と、テスト用の PC で確かめていますが、すべての環境での動作は保証できません。大事なアドオンは、git などで控えをとってから使ってください。
+> **ベータ版（0.12）です。** 作者の環境と、テスト用の PC で確かめていますが、すべての環境での動作は保証できません。大事なアドオンは、git などで控えをとってから使ってください。
 
 ## できること
 
