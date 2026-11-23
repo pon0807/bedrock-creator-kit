@@ -17,6 +17,7 @@ const { build, MARK_FILE } = await import("../lib/build.mjs");
 const { bumpAddon, packageAddon } = await import("../lib/release.mjs");
 const { scanUuids } = await import("../lib/check.mjs");
 const { unzipSync } = await import("fflate");
+const { rmrf } = await import("../lib/util.mjs");
 
 const root = path.join(env.ws, "stable", "Sword");
 const bp = (n = "main") => path.join(root, "behavior_packs", `Sword_${n}BP`);
@@ -59,6 +60,39 @@ test("bkit new: BP・RP・スキンパックを、決まった形で作る", asy
   assert.ok(!pkg.devDependencies["bedrock-kit"]);
   const cfg = readJson(path.join(root, "addon.config.json"));
   assert.deepEqual(cfg.addons[0].packs, ["Sword_mainBP", "Sword_mainRP", "Sword_mainSP"]);
+  assert.ok(!fs.existsSync(path.join(root, "CLAUDE.md")), "Claude を使わない人には CLAUDE.md を作らない（ふだん）");
+  assert.ok(fs.existsSync(path.join(root, "README.md")));
+});
+
+test("bkit new: CLAUDE.md は --claude-md か、設定で「使う」にした人だけ作る", async () => {
+  const where = path.join(env.tmp, "claude-md");
+  const make = async (name, extra) => {
+    const done = quiet();
+    const code = await createProject({ _: name ? [name] : [], dir: where, targets: "bedrock", packs: "bp", modules: "server", install: false, git: false, ...extra });
+    done();
+    assert.equal(code, 0);
+  };
+  const has = (n) => fs.existsSync(path.join(where, n, "CLAUDE.md"));
+
+  await make("WithFlag", { "claude-md": true });
+  assert.ok(has("WithFlag"));
+  assert.match(fs.readFileSync(path.join(where, "WithFlag", "CLAUDE.md"), "utf8"), /<!-- bkit -->/);
+  // 「bkit new --claude-md 名前」と書いても、名前として読む
+  await make(null, { "claude-md": "FlagFirst" });
+  assert.ok(has("FlagFirst"));
+
+  // 設定で「使う」にした PC では、言わなくても作る。--no-claude-md なら作らない
+  const settings = process.env.BKIT_SETTINGS;
+  const before = fs.readFileSync(settings, "utf8");
+  fs.writeFileSync(settings, JSON.stringify({ ...JSON.parse(before), claudeMd: true }));
+  try {
+    await make("BySetting");
+    assert.ok(has("BySetting"));
+    await make("Opted", { "claude-md": false });
+    assert.ok(!has("Opted"));
+  } finally {
+    fs.writeFileSync(settings, before);
+  }
 });
 
 test("bkit add: 追加コンテンツを足すと、本体への依存が manifest に入る", async () => {
@@ -118,6 +152,36 @@ test("目印がなくても、同じ UUID の古い写しなら入れ直す", as
   assert.ok(fs.existsSync(path.join(dest, MARK_FILE)));
 });
 
+test("送るときは、送り先のフォルダそのものは消さずに、前の版の残りだけ消す（ゲームが開いていても送れるように）", async () => {
+  const dest = path.join(env.gamesRoot, "bedrock", "development_behavior_packs", "Sword_mainBP");
+  const done = quiet();
+  await build(loadProject(root), { mode: "dev", deploy: true, only: "bedrock" });
+  const ino = fs.statSync(dest).ino;
+  fs.mkdirSync(path.join(dest, "old_dir", "deep"), { recursive: true });
+  fs.writeFileSync(path.join(dest, "old_dir", "deep", "残り.json"), "{}");
+  fs.writeFileSync(path.join(dest, "残り.txt"), "x");
+  const r = await build(loadProject(root), { mode: "dev", deploy: true, only: "bedrock" });
+  done();
+  assert.ok(r.ok);
+  assert.equal(fs.statSync(dest).ino, ino, "フォルダは作り直さない");
+  assert.ok(!fs.existsSync(path.join(dest, "残り.txt")));
+  assert.ok(!fs.existsSync(path.join(dest, "old_dir")), "空になったフォルダは消す");
+  assert.ok(fs.existsSync(path.join(dest, "scripts", "main.js")));
+  assert.ok(fs.existsSync(path.join(dest, "manifest.json")));
+  assert.ok(fs.existsSync(path.join(dest, MARK_FILE)));
+});
+
+test("rmrf: 日本語の名前のファイル 1 つを消しても落ちない", () => {
+  const dir = fs.mkdtempSync(path.join(env.gamesRoot, "rmrf-"));
+  const f = path.join(dir, "日本語のファイル.json");
+  fs.writeFileSync(f, "{}");
+  rmrf(f);
+  assert.ok(!fs.existsSync(f));
+  rmrf(f); // 無くても止まらない
+  rmrf(dir);
+  assert.ok(!fs.existsSync(dir));
+});
+
 test("配布: アドオンごとに版を上げ、拡張の依存の版も合わせる。zip にはそのアドオンのパックだけ", async () => {
   const project = loadProject(root);
   const done = quiet();
@@ -153,6 +217,51 @@ test("配布: アドオンごとに版を上げ、拡張の依存の版も合わ
   const files = unzipSync(fs.readFileSync(br.addon));
   assert.equal(JSON.parse(Buffer.from(files["Sword_mainBP/manifest.json"]).toString()).header.pack_optimization_version, "0.1.0");
   assert.deepEqual(br.baked.map((b) => b.pack).sort(), ["Sword_mainBP", "Sword_mainRP"]);
+});
+
+test("配布の形式: 選んだ形式だけを作る（mcaddon / mcpack / zip）", async () => {
+  const fresh = loadProject(root);
+  const extra = addonsOf(fresh).find((a) => a.id === "extra");
+  const dist = path.join(root, "dist");
+  const done = quiet();
+  await build(fresh, { mode: "prod", deploy: false });
+  rmrf(dist);
+
+  // 何も言わなければ .mcaddon だけ（パックごとの .mcpack は作らない）
+  const a = packageAddon(fresh, extra, "2.0.0", { multi: true });
+  assert.deepEqual(a.formats, ["mcaddon"]);
+  assert.deepEqual(fs.readdirSync(dist), ["Sword_extra_v2.0.0.mcaddon"]);
+  assert.equal(a.packsDir, null);
+
+  // .mcpack だけ: パックごとに 1 つずつ。中はパックの中身がそのまま（manifest.json が一番上）
+  rmrf(dist);
+  const b = packageAddon(fresh, extra, "2.0.0", { multi: true, formats: "mcpack" });
+  assert.equal(b.addon, null);
+  assert.deepEqual(fs.readdirSync(dist), ["Sword_extra_v2.0.0"]);
+  assert.deepEqual(fs.readdirSync(b.packsDir).sort(), ["Sword_extraBP.mcpack", "Sword_extraRP.mcpack"]);
+  assert.ok(Object.keys(unzipSync(fs.readFileSync(path.join(b.packsDir, "Sword_extraBP.mcpack")))).includes("manifest.json"));
+
+  // .zip: 中身は .mcaddon と同じ。並べると両方
+  rmrf(dist);
+  const c = packageAddon(fresh, extra, "2.0.0", { multi: true, formats: "zip,mcaddon" });
+  done();
+  assert.deepEqual(c.formats, ["mcaddon", "zip"]);
+  assert.deepEqual(fs.readdirSync(dist).sort(), ["Sword_extra_v2.0.0.mcaddon", "Sword_extra_v2.0.0.zip"]);
+  const names = (f) => Object.keys(unzipSync(fs.readFileSync(path.join(dist, f)))).sort();
+  assert.deepEqual(names("Sword_extra_v2.0.0.zip"), names("Sword_extra_v2.0.0.mcaddon"));
+  rmrf(dist);
+});
+
+test("配布の形式: 書き方と、addon.config.json の release.format", async () => {
+  const { parseFormats, formatDefault } = await import("../lib/release.mjs");
+  assert.deepEqual(parseFormats("mcpack"), ["mcpack"]);
+  assert.deepEqual(parseFormats(" ZIP , .mcaddon "), ["mcaddon", "zip"], "大文字・空白・点は気にしない。順は決まった順");
+  assert.deepEqual(parseFormats(["zip"]), ["zip"]);
+  assert.throws(() => parseFormats("mcworld"), /知らない形式/);
+  assert.throws(() => parseFormats(""), /1 つ以上/);
+  assert.deepEqual(formatDefault({ config: {} }), ["mcaddon"]);
+  assert.deepEqual(formatDefault({ config: { release: { format: "zip" } } }), ["zip"]);
+  assert.deepEqual(formatDefault({ config: { release: { format: ["mcpack", "zip"] } } }), ["mcpack", "zip"]);
 });
 
 test("UUID の重複を見つける（同じ名前のフォルダ＝写しは数えない、BDS 一式は見ない）", () => {

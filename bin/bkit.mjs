@@ -19,6 +19,7 @@ const { findWorkspace, bdsRoots, KIT_NAME, SETTINGS_FILE } = await import("../li
 const { setupWizard, upgradeProject, upgradeAll, initWorkspace, EXTENSIONS, kitReachable } = await import("../lib/workspace.mjs");
 const { mainMenu, newWizard, addWizard, pickProject, isInteractive } = await import("../lib/menu.mjs");
 const { currentEditor, listExtensions } = await import("../lib/editors.mjs");
+const { checkForUpdate, readUpdateState, isNewer } = await import("../lib/updates.mjs");
 
 const VERSION = readJson(path.join(KIT_ROOT, "package.json")).version;
 
@@ -35,6 +36,7 @@ ${color.bold("はじめに")}
       --targets bedrock,education    送り先（bedrock / preview / education / education-preview / bds）
       --modules server@2.8.0,ui      モジュールと版（版を省くとおすすめの版。--no-modules でスクリプトなし）
       --display 表示名  --author 作者
+      --claude-md                    Claude 向けの説明 CLAUDE.md も作る（省くと bkit setup の答えで決まる。--no-claude-md で作らない）
 
 ${color.bold("アドオンのフォルダの中で")}（npm run 〇〇 でも同じ）
   watch [--addon 名前]               変更を見張って、ゲームに送り続ける
@@ -44,6 +46,7 @@ ${color.bold("アドオンのフォルダの中で")}（npm run 〇〇 でも同
   validate [main|addon|all]          公式の Creator Tools で検証
   release [patch|minor|major|none]   版を上げて dist/ に .mcaddon を作る（アドオンごと。--addon で絞る）
       --brarchive                    パックの中身を .brarchive にまとめる（公式のパックと同じ形。--no-brarchive でやめる）
+      --format mcaddon|mcpack|zip    作る形式（カンマで並べると複数。省くと .mcaddon か addon.config.json の release.format）
   add [名前] [--requires main]       このプロジェクトにアドオンを足す（名前を省くと質問形式）
   uuid [--fix] [--new N]             UUID の重複を探す / 振り直す / 新しく出す
   vscode                             .vscode（デバッガなど）を作り直す
@@ -72,6 +75,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const [cmd, ...rest] = argv;
   const args = parseArgs(rest);
+  // 新しい bkit が出ていたら 1 行で知らせる（前に調べた結果を読むだけ。調べ直しは裏で 1 日 1 回）
+  if (cmd !== "update") checkForUpdate(VERSION);
 
   if (!cmd) {
     if (isInteractive()) return mainMenu({ doctor, help: () => console.log(HELP) });
@@ -124,7 +129,7 @@ async function main() {
         kind ??= brarchive;
         brarchive = true;
       }
-      return release(proj(), { kind: kind ?? "patch", force: !!args.force, skipValidate: args.validate === false, addons: args.addon, brarchive });
+      return release(proj(), { kind: kind ?? "patch", force: !!args.force, skipValidate: args.validate === false, addons: args.addon, brarchive, formats: args.format === undefined ? undefined : args.format === true ? "" : args.format });
     }
     case "add":
       if (!args._[0] && isInteractive()) return addWizard(proj());
@@ -158,7 +163,7 @@ async function main() {
     case "migrate": {
       const targets = args.targets ? String(args.targets).split(",") : undefined;
       let code = 0;
-      for (const dir of args._) code ||= migrateProject(path.resolve(dir), { targets, install: args.install !== false, dryRun: !!args["dry-run"] });
+      for (const dir of args._) code ||= migrateProject(path.resolve(dir), { targets, install: args.install !== false, dryRun: !!args["dry-run"], claudeMd: args["claude-md"] });
       return code;
     }
     case "doctor":
@@ -181,7 +186,11 @@ async function main() {
 }
 
 function doctor() {
-  console.log(color.bold(`\nbkit ${VERSION}`));
+  const st = readUpdateState();
+  const latestNote = !st.latest ? color.gray("（npm の最新版はまだ調べていない）")
+    : isNewer(st.latest, VERSION) ? color.yellow(`（npm の最新版は ${st.latest}。bkit update で新しくできます）`)
+    : color.gray("（npm の最新版）");
+  console.log(color.bold(`\nbkit ${VERSION}`) + " " + latestNote);
   console.log(color.bold("\nゲームと、使える Script API の版"));
   for (const t of allGameTargets()) {
     if (!t.root && !t.engine) { console.log(`  ${t.label.padEnd(14)} ${color.gray("入っていない")}`); continue; }

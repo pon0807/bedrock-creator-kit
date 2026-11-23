@@ -1,5 +1,16 @@
 # 更新履歴
 
+## 0.11.0
+
+- 新しい bkit が出ると、bkit を動かしたときに「新しい bkit 〇〇 が出ています。bkit update で新しくできます」と 1 行で知らせる。npm の最新版は 1 日に 1 回、裏の別のプロセスで調べるので、コマンドは待たされない。`bkit doctor` にも npm の最新版を出す。止めるときは環境変数 `BKIT_NO_UPDATE_CHECK=1`
+  - この版から入るので、0.10.0 以前を使っている人には届かない
+- `npm run release` の形式を選べるようにした: `.mcaddon`（パックを 1 つにまとめる）・`.mcpack`（パックごとに 1 つ。`dist\<名前>_v<版>\` の中）・`.zip`（中身は .mcaddon と同じ）。`--format mcpack` のように指定し、`mcaddon,zip` と並べると両方作る。いつも同じ形式なら `addon.config.json` に `"release": { "format": "zip" }`。メニューの「配布・納品用のファイルを作る」でも選べる
+  - 作るのは選んだ形式だけになった。何も選ばなければ `.mcaddon` だけ（前は、いつも `.mcaddon` とパックごとの `.mcpack` の両方を作っていた）
+- `bkit new` は、Claude 向けの説明 `CLAUDE.md` を、ふだんは作らなくなった。`bkit setup` で「Claude Code を使う」と答えた PC だけ作る（設定の `claudeMd`）。1 回だけなら `--claude-md`、作らないなら `--no-claude-md`。今ある `CLAUDE.md` は消さず、`bkit upgrade` と `bkit migrate` は今までどおり bkit の節を書き直す。bkit の節に `--format` と `--brarchive` を足した
+- README に「新しくするには」（`bkit update` と、手で上げるときのコマンド）を足した
+- `npm run build` でゲームに送るとき、パックのフォルダを丸ごと消して作り直すのをやめた。変わったファイルを上書きし、前の版の残りだけ消す。ゲームを開いたままでも送れる（前は、開いていると消したフォルダが「消しかけ」のまま残り、ゲームを終了するまで送れなくなった）。消しかけのフォルダに当たったときは、そう知らせて止める
+- Node 24（Windows）で、日本語の名前のファイルを 1 つ消すとプロセスごと落ちる（`fs.rmSync`）のを避けた（`npm run watch` でそのファイルを消したときに起きた）
+
 ## 0.10.0
 
 - `npm run release -- --brarchive`: 配布ファイルのパックの中身を `.brarchive` にまとめる（Mojang の公式のパックと同じ `__brarchive\` の形）。いつもまとめるなら `addon.config.json` に `"release": { "brarchive": true }`。メニューの「配布・納品用のファイルを作る」でも選べる
